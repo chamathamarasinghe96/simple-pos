@@ -1,0 +1,82 @@
+name: Deploy PHP Website to Server
+
+on:
+  push:
+    branches:
+      - main # Or your deployment branch, e.g., master, production
+
+jobs:
+  deploy:
+    name: Deploy to Server
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add Server to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+        # This step helps prevent interactive prompts during SSH connection.
+
+      - name: Deploy files via rsync
+        run: |
+          rsync -avz --delete \
+            --exclude '.git*' \
+            --exclude '.github' \
+            --exclude 'README.md' \
+            --exclude '.vscode' \
+            # Add any other files or directories to exclude from deployment here
+            # Example: --exclude 'local_config.php'
+            # Example: --exclude '.env' 
+            ./ ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_IP }}:${{ secrets.REMOTE_WWW_PATH }}/
+        # - 'a': archive mode (preserves permissions, ownership (if possible), timestamps, etc.)
+        # - 'v': verbose
+        # - 'z': compress file data during the transfer
+        # - '--delete': delete extraneous files from the destination (makes the destination a mirror of the source)
+        # - '--exclude': exclude specified files/directories
+
+      - name: Set Basic Permissions on Server (Adjust if Needed)
+        if: success() # Only run if rsync was successful
+        run: |
+          ssh ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_IP }} << EOF
+            echo "Attempting to set basic permissions on the server..."
+            
+            # IMPORTANT: These are general permissions.
+            # You may need to adjust the owner/group (e.g., www-data:www-data)
+            # and permissions based on your aaPanel/PHP setup.
+            # If your SSH user is the web server user, these might be sufficient.
+            # Otherwise, you might need 'sudo chown -R www-data:www-data ${{ secrets.REMOTE_WWW_PATH }}'
+            
+            echo "Setting standard permissions for directories and files..."
+            find ${{ secrets.REMOTE_WWW_PATH }} -type d -exec chmod 755 {} \;
+            find ${{ secrets.REMOTE_WWW_PATH }} -type f -exec chmod 644 {} \;
+            
+            # Specifically make the 'data' directory writable by the web server.
+            # This is critical for your application to save JSON files.
+            if [ -d "${{ secrets.REMOTE_WWW_PATH }}/data" ]; then
+              echo "Ensuring 'data' directory at ${{ secrets.REMOTE_WWW_PATH }}/data is writable..."
+              # If 'chmod 777' is too open, try 'chmod 775' and ensure the group is correct,
+              # or 'chmod 755' if the owner (your SSH user) is the same as the PHP user.
+              # For many shared hosting or panel setups, 755 or 775 is needed if the webserver user is different.
+              # A common approach is to give the web server write access.
+              chmod -R 755 ${{ secrets.REMOTE_WWW_PATH }}/data # Start with this, may need to be more permissive like 775 or ensure group ownership
+              # If PHP runs as a different user (e.g., www-data), you might need:
+              # sudo chown -R www-data:www-data ${{ secrets.REMOTE_WWW_PATH }}/data
+              # sudo chmod -R g+w ${{ secrets.REMOTE_WWW_PATH }}/data # or ugo+w, or 775
+            else
+              echo "Warning: 'data' directory not found at ${{ secrets.REMOTE_WWW_PATH }}/data for permission check."
+            fi
+            
+            echo "Basic permissions script finished. Review and adjust if necessary."
+          EOF
+          
+    outputs:
+      deployment_status: ${{ job.status }}
