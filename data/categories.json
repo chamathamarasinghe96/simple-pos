@@ -1,0 +1,30 @@
+[
+    {
+        "id": "C01",
+        "name": "Uncategorized"
+    },
+    {
+        "id": "C02",
+        "name": "Produce"
+    },
+    {
+        "id": "C03",
+        "name": "Dairy & Eggs"
+    },
+    {
+        "id": "C04",
+        "name": "Bakery"
+    },
+    {
+        "id": "C05",
+        "name": "Beverages"
+    },
+    {
+        "id": "C06",
+        "name": "Packaged Goods"
+    },
+    {
+        "id": "C07",
+        "name": "Snacks"
+    }
+]

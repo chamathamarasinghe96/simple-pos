@@ -1,0 +1,24 @@
+[
+    {
+        "id": "P001",
+        "name": "Whole Milk 1L",
+        "category": "Dairy",
+        "price": 2.5,
+        "unit": "pcs",
+        "stock": 55,
+        "low_stock_threshold": 10,
+        "last_updated": "2025-05-18 04:59:09"
+    },
+    {
+        "id": "P2",
+        "name": "Butter Cake 1kg",
+        "category_id": "C04",
+        "category_name": "Bakery",
+        "price": 1200,
+        "unit": "kg",
+        "stock": 9,
+        "low_stock_threshold": 5,
+        "date_added": "2025-05-18 05:18:16",
+        "last_updated": "2025-05-18 05:32:41"
+    }
+]

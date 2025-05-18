@@ -1,0 +1,63 @@
+[
+    {
+        "transaction_id": "S20250518001",
+        "date": "2025-05-18",
+        "time": "10:30:00",
+        "items": [
+            {
+                "product_id": "P001",
+                "name": "Whole Milk 1L",
+                "quantity": 2,
+                "unit_price": 2.5,
+                "total_price": 5
+            }
+        ],
+        "subtotal": 5,
+        "tax_rate_percent": 0,
+        "tax_amount": 0,
+        "grand_total": 5,
+        "payment_method": "Cash"
+    },
+    {
+        "transaction_id": "S20250518002",
+        "date": "2025-05-18",
+        "time": "08:29:52",
+        "items": [
+            {
+                "product_id": "P001",
+                "name": "Whole Milk 1L",
+                "quantity": 3,
+                "unit_price": 2.5,
+                "total_price": 7.5,
+                "unit": "pcs"
+            }
+        ],
+        "subtotal": 7.5,
+        "tax_rate_percent": 0,
+        "tax_amount": 0,
+        "grand_total": 7.5,
+        "payment_method": "Cash",
+        "timezone": "Asia\/Colombo"
+    },
+    {
+        "transaction_id": "S20250518003",
+        "date": "2025-05-18",
+        "time": "11:02:41",
+        "items": [
+            {
+                "product_id": "P2",
+                "name": "Butter Cake 1kg",
+                "quantity": 3,
+                "unit_price": 1200,
+                "total_price": 3600,
+                "unit": "kg"
+            }
+        ],
+        "subtotal": 3600,
+        "tax_rate_percent": 0,
+        "tax_amount": 0,
+        "grand_total": 3600,
+        "payment_method": "Cash",
+        "timezone": "Asia\/Colombo"
+    }
+]
