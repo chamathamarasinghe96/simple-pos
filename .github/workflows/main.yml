@@ -25,66 +25,57 @@ jobs:
           ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Display Remote Path for Debugging
+      - name: Display Remote Path and User Info for Debugging
         run: |
           echo "Remote WWW Path from secret is: '${{ secrets.REMOTE_WWW_PATH }}'"
-          echo "Attempting to list remote directory contents..."
-          ssh ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_IP }} "ls -ld ${{ secrets.REMOTE_WWW_PATH }}" || echo "Failed to list remote directory or path does not exist."
-          echo "Current groups for SSH user on remote:"
-          ssh ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_IP }} "groups"
+          echo "SSH User from secret is: '${{ secrets.SERVER_USERNAME }}'"
+          echo "Attempting to list remote directory contents (as SSH user)..."
+          ssh ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_IP }} "ls -ld ${{ secrets.REMOTE_WWW_PATH }}; whoami; groups; ls -la ${{ secrets.REMOTE_WWW_PATH }}/.user.ini || echo '.user.ini not found or not accessible'" || echo "Failed to list remote directory or gather user info."
 
-      - name: Deploy files via rsync (with modified options for debugging)
+      - name: Deploy files via rsync
         run: |
-          echo "Current local directory:"
-          pwd
+          echo "Current local directory contents:"
           ls -la
           echo "---"
           echo "Executing rsync command..."
           set -x # Print the exact command being run
 
-          # Try without -o and -g (owner/group preservation) initially to simplify
-          # and use --no-super to prevent issues if the remote user cannot set all attributes
-          rsync -rtvz --delete --no-super \
+          # Using -rlpvz (removed -t to avoid 'failed to set times' error)
+          # -r: recursive, -l: copy symlinks as symlinks, -p: preserve permissions (as much as possible)
+          # -v: verbose, -z: compress
+          rsync -rlpvz --delete --no-super \
             --exclude '.git*' \
             --exclude '.github' \
             --exclude 'README.md' \
             --exclude '.vscode' \
+            --exclude '.user.ini' \
             ./ ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_IP }}:${{ secrets.REMOTE_WWW_PATH }}/
-          # -r: recursive
-          # -t: preserve modification times
-          # -v: verbose
-          # -z: compress
-          # --no-super: receiver will not attempt super-user activities
 
-      - name: Set Permissions on Server
-        if: success()
+      - name: Set Final Permissions on Server
+        if: always()
         run: |
           ssh ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_IP }} << EOF
-            echo "Setting permissions on the server..."
+            echo "Attempting to set final permissions on the server..."
             echo "Target directory: ${{ secrets.REMOTE_WWW_PATH }}"
             
-            # If Option 2 was fully implemented (SSH user in 'www' group, target dir owned by www:www and 775)
-            # Files created by rsync (run by SSH_USER) will be owned by SSH_USER:PRIMARY_GROUP_OF_SSH_USER.
-            # We need them to be group 'www' and group-writable for PHP.
-
-            echo "Changing group to 'www' for all files/dirs..."
-            sudo chgrp -R www ${{ secrets.REMOTE_WWW_PATH }} || echo "chgrp failed, check sudo permissions for user ${{ secrets.SERVER_USERNAME }}"
+            echo "Changing group ownership to 'www' for all items in ${{ secrets.REMOTE_WWW_PATH }}..."
+            sudo chgrp -R www ${{ secrets.REMOTE_WWW_PATH }} || echo "WARNING: Failed to change group to 'www'. Sudo rights for chgrp might be missing for user ${{ secrets.SERVER_USERNAME }}."
             
-            echo "Setting directory permissions to 775 (rwxrwxr-x)..."
-            find ${{ secrets.REMOTE_WWW_PATH }} -type d -exec sudo chmod 775 {} \; || echo "chmod for directories failed"
+            echo "Setting directory permissions to 775 (rwxrwxr-x) for 'www' group access..."
+            find ${{ secrets.REMOTE_WWW_PATH }} -type d -exec sudo chmod 775 {} \; || echo "WARNING: Failed to chmod directories."
             
-            echo "Setting file permissions to 664 (rw-rw-r--)..."
-            find ${{ secrets.REMOTE_WWW_PATH }} -type f -exec sudo chmod 664 {} \; || echo "chmod for files failed"
+            echo "Setting file permissions to 664 (rw-rw-r--) for 'www' group access..."
+            find ${{ secrets.REMOTE_WWW_PATH }} -type f -exec sudo chmod 664 {} \; || echo "WARNING: Failed to chmod files."
             
             if [ -d "${{ secrets.REMOTE_WWW_PATH }}/data" ]; then
-              echo "Ensuring 'data' directory permissions..."
-              sudo chgrp -R www ${{ secrets.REMOTE_WWW_PATH }}/data || echo "chgrp for data dir failed"
-              sudo chmod -R 775 ${{ secrets.REMOTE_WWW_PATH }}/data || echo "chmod for data dir failed"
+              echo "Ensuring 'data' directory (${{ secrets.REMOTE_WWW_PATH }}/data) is group 'www' and writable (775)..."
+              sudo chgrp -R www ${{ secrets.REMOTE_WWW_PATH }}/data || echo "WARNING: Failed to chgrp data directory."
+              sudo chmod -R 775 ${{ secrets.REMOTE_WWW_PATH }}/data || echo "WARNING: Failed to chmod data directory."
             else
-              echo "Warning: 'data' directory not found for permission check."
+              echo "Notice: 'data' directory not found at ${{ secrets.REMOTE_WWW_PATH }}/data for specific permission check."
             fi
             
-            echo "Permissions script finished."
+            echo "Final permissions script finished."
           EOF
           
     outputs:
