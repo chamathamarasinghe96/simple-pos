@@ -13,7 +13,7 @@ if (!isset($settings)) {
     $fallback_settings_file_path = __DIR__ . '/../data/settings.json';
     $settings_from_fallback = read_json_file($fallback_settings_file_path);
     $default_settings_fallback = [
-        'shop_name' => 'Simple POS System',
+        'shop_name' => 'C Grocery Store',
         'currency_symbol' => 'LKR'
     ];
     $settings = array_merge($default_settings_fallback, $settings_from_fallback);
@@ -21,7 +21,7 @@ if (!isset($settings)) {
 */
 
 $current_year_footer = date('Y');
-$shop_name_footer = isset($settings['shop_name']) ? sanitize_input($settings['shop_name']) : 'Simple POS System';
+$shop_name_footer = isset($settings['shop_name']) ? sanitize_input($settings['shop_name']) : 'C Grocery Store';
 
 ?>
 

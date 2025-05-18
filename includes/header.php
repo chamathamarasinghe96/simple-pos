@@ -11,7 +11,7 @@ require_once __DIR__ . '/db_helpers.php'; // To potentially load settings for sh
 // Define the path to the settings file relative to this header.php file
 $settings_file_path = __DIR__ . '/../data/settings.json';
 $settings = read_json_file($settings_file_path);
-$shop_name = isset($settings['shop_name']) && !empty($settings['shop_name']) ? $settings['shop_name'] : 'Simple POS System';
+$shop_name = isset($settings['shop_name']) && !empty($settings['shop_name']) ? $settings['shop_name'] : 'C Grocery Store';
 
 // Page title logic: if $page_title is set on the specific page, use it, otherwise default.
 $current_page_title = isset($page_title) ? sanitize_input($page_title) . ' - ' . sanitize_input($shop_name) : sanitize_input($shop_name);
