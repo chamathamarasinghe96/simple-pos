@@ -43,7 +43,7 @@ jobs:
           # Using -rlpvz (removed -t to avoid 'failed to set times' error)
           # -r: recursive, -l: copy symlinks as symlinks, -p: preserve permissions (as much as possible)
           # -v: verbose, -z: compress
-          rsync -rlpvz --delete --no-super \
+          rsync -rlvz --delete --no-super \
             --exclude '.git*' \
             --exclude '.github' \
             --exclude 'README.md' \
