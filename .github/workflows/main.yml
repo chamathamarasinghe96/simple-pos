@@ -3,7 +3,7 @@ name: Deploy PHP Website to Server
 on:
   push:
     branches:
-      - main # Or your deployment branch, e.g., master, production
+      - main # Or your deployment branch
 
 jobs:
   deploy:
@@ -25,67 +25,66 @@ jobs:
           ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Deploy files via rsync
+      - name: Display Remote Path for Debugging
         run: |
-          # The -a flag in rsync attempts to preserve permissions.
-          # If your SSH_USER is part of the 'www' group, and 'www' group has write permissions
-          # on the REMOTE_WWW_PATH, this should work.
-          # Rsync will create files owned by SSH_USER:primary_group_of_SSH_USER.
-          # The subsequent permissions step ensures the 'www' group can still manage them if needed.
-          rsync -avz --delete \
+          echo "Remote WWW Path from secret is: '${{ secrets.REMOTE_WWW_PATH }}'"
+          echo "Attempting to list remote directory contents..."
+          ssh ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_IP }} "ls -ld ${{ secrets.REMOTE_WWW_PATH }}" || echo "Failed to list remote directory or path does not exist."
+          echo "Current groups for SSH user on remote:"
+          ssh ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_IP }} "groups"
+
+      - name: Deploy files via rsync (with modified options for debugging)
+        run: |
+          echo "Current local directory:"
+          pwd
+          ls -la
+          echo "---"
+          echo "Executing rsync command..."
+          set -x # Print the exact command being run
+
+          # Try without -o and -g (owner/group preservation) initially to simplify
+          # and use --no-super to prevent issues if the remote user cannot set all attributes
+          rsync -rtvz --delete --no-super \
             --exclude '.git*' \
             --exclude '.github' \
             --exclude 'README.md' \
             --exclude '.vscode' \
-            # Add any other files or directories to exclude
             ./ ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_IP }}:${{ secrets.REMOTE_WWW_PATH }}/
+          # -r: recursive
+          # -t: preserve modification times
+          # -v: verbose
+          # -z: compress
+          # --no-super: receiver will not attempt super-user activities
 
       - name: Set Permissions on Server
-        if: success() # Only run if rsync was successful
+        if: success()
         run: |
           ssh ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_IP }} << EOF
             echo "Setting permissions on the server..."
             echo "Target directory: ${{ secrets.REMOTE_WWW_PATH }}"
             
-            # Since your SSH user ( ${{ secrets.SERVER_USERNAME }} ) is now part of the 'www' group,
-            # and assuming the files were created by this user during rsync,
-            # we need to ensure the 'www' group (which PHP/webserver runs as) has appropriate access.
+            # If Option 2 was fully implemented (SSH user in 'www' group, target dir owned by www:www and 775)
+            # Files created by rsync (run by SSH_USER) will be owned by SSH_USER:PRIMARY_GROUP_OF_SSH_USER.
+            # We need them to be group 'www' and group-writable for PHP.
+
+            echo "Changing group to 'www' for all files/dirs..."
+            sudo chgrp -R www ${{ secrets.REMOTE_WWW_PATH }} || echo "chgrp failed, check sudo permissions for user ${{ secrets.SERVER_USERNAME }}"
             
-            # 1. Ensure correct ownership (owner: your SSH user, group: www)
-            #    Files synced by rsync are typically owned by the SSH user.
-            #    If they are not already group 'www', you might need to change group ownership.
-            #    However, if your SSH user's primary group IS 'www' or if rsync preserves source group
-            #    and source group is 'www', this might not be needed.
-            #    Forcing group to 'www' ensures consistency for the web server.
-            #    The 'sudo' is needed if your SSH user cannot chgrp files to 'www' group directly.
-            #    If your SSH user's primary group is 'www', then 'sudo' for chgrp might not be needed.
-            sudo chgrp -R www ${{ secrets.REMOTE_WWW_PATH }}
-            
-            # 2. Set directory permissions: owner=rwx, group=rwx, other=rx (775)
-            #    This allows your SSH user and the 'www' group (webserver) to manage.
             echo "Setting directory permissions to 775 (rwxrwxr-x)..."
-            find ${{ secrets.REMOTE_WWW_PATH }} -type d -exec sudo chmod 775 {} \;
+            find ${{ secrets.REMOTE_WWW_PATH }} -type d -exec sudo chmod 775 {} \; || echo "chmod for directories failed"
             
-            # 3. Set file permissions: owner=rw, group=rw, other=r (664)
-            #    This allows your SSH user and the 'www' group (webserver) to read/write.
             echo "Setting file permissions to 664 (rw-rw-r--)..."
-            find ${{ secrets.REMOTE_WWW_PATH }} -type f -exec sudo chmod 664 {} \;
+            find ${{ secrets.REMOTE_WWW_PATH }} -type f -exec sudo chmod 664 {} \; || echo "chmod for files failed"
             
-            # 4. Specific check for the 'data' directory to ensure it's definitely writable
-            #    by the 'www' group for PHP processes.
-            #    The above 775 on directories and 664 on files should cover it if group is 'www'.
             if [ -d "${{ secrets.REMOTE_WWW_PATH }}/data" ]; then
-              echo "Verifying 'data' directory permissions at ${{ secrets.REMOTE_WWW_PATH }}/data..."
-              # Ensure 'data' directory and its contents are group 'www' and group-writable
-              sudo chgrp -R www ${{ secrets.REMOTE_WWW_PATH }}/data
-              sudo chmod -R 775 ${{ secrets.REMOTE_WWW_PATH }}/data # rwxrwxr-x
-              # If files inside data need to be different (e.g. 664), apply separately:
-              # find ${{ secrets.REMOTE_WWW_PATH }}/data -type f -exec sudo chmod 664 {} \;
+              echo "Ensuring 'data' directory permissions..."
+              sudo chgrp -R www ${{ secrets.REMOTE_WWW_PATH }}/data || echo "chgrp for data dir failed"
+              sudo chmod -R 775 ${{ secrets.REMOTE_WWW_PATH }}/data || echo "chmod for data dir failed"
             else
-              echo "Warning: 'data' directory not found at ${{ secrets.REMOTE_WWW_PATH }}/data for permission check."
+              echo "Warning: 'data' directory not found for permission check."
             fi
             
-            echo "Permissions script finished. Review server logs if issues persist."
+            echo "Permissions script finished."
           EOF
           
     outputs:
